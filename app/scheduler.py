@@ -9,8 +9,15 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from .checks.api import check_api
+from .checks.backup import check_backup
+from .checks.disk import check_disk
+from .checks.docker import check_docker
 from .checks.hosts import check_hosts
+from .checks.load import check_load
 from .checks.nodes import check_nodes
+from .checks.systemd import check_systemd
+from .checks.tls import check_tls
 from .checks.violations import check_violations
 from .config import settings
 from .notifier import Notifier
@@ -57,6 +64,13 @@ async def tick(notifier: Notifier) -> None:
     results = await asyncio.gather(
         check_hosts(),
         check_nodes(),
+        check_systemd(),
+        check_docker(),
+        check_tls(),
+        check_load(),
+        check_api(),
+        check_backup(),
+        check_disk(),
         return_exceptions=True,
     )
     all_events = []
