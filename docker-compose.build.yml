@@ -1,0 +1,8 @@
+# Overlay for local builds. Use together with the main compose file:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+services:
+  monitor-bot:
+    image: zspzvs-monitor-bot:local
+    build:
+      context: .
+      dockerfile: Dockerfile

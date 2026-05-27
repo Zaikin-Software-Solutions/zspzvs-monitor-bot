@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.local
+data/
+*.db
+*.db-shm
+*.db-wal
+.venv/
+venv/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+.DS_Store
+README.md
