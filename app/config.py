@@ -30,5 +30,21 @@ class Settings(BaseSettings):
     host_down_threshold_ticks: int = Field(2, alias="HOST_DOWN_THRESHOLD_TICKS")
     alert_cooldown_secs: int = Field(3600, alias="ALERT_COOLDOWN_SECS")
 
+    # === Limiter (нотификации только) ===
+    # Включает проверку нарушений лимита устройств (HWID/IP) у юзеров.
+    enable_limiter: bool = Field(False, alias="ENABLE_LIMITER")
+    # JWT для REST-API Remnawave (role=API). Нужен только лимитеру.
+    remnawave_api_token: str = Field("", alias="REMNAWAVE_API_TOKEN")
+    # Сколько секунд между check_violations (отдельно от общего check_interval).
+    limiter_check_interval: int = Field(60, alias="LIMITER_CHECK_INTERVAL")
+    # Сколько нарушений за окно нужно набрать чтобы кинуть алерт.
+    limiter_violation_threshold: int = Field(3, alias="LIMITER_VIOLATION_THRESHOLD")
+    # Окно скользящего счётчика нарушений (секунды).
+    limiter_violation_window: int = Field(3600, alias="LIMITER_VIOLATION_WINDOW")
+    # Cooldown между одинаковыми алертами на одного юзера (секунды).
+    limiter_cooldown: int = Field(300, alias="LIMITER_COOLDOWN")
+    # Окно «свежести» IP — IP считается активным если lastSeen <= этого (секунды).
+    limiter_active_ip_window: int = Field(120, alias="LIMITER_ACTIVE_IP_WINDOW")
+
 
 settings = Settings()  # type: ignore[call-arg]

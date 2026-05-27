@@ -39,6 +39,21 @@ CREATE TABLE IF NOT EXISTS muted_inbounds (
 );
 
 CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
+
+-- История зафиксированных нарушений лимита устройств у юзера (скользящее окно).
+CREATE TABLE IF NOT EXISTS violation_log (
+    user_uuid   TEXT    NOT NULL,
+    ts          INTEGER NOT NULL,
+    ips_count   INTEGER NOT NULL,
+    ips         TEXT    NOT NULL          -- JSON-массив строк
+);
+CREATE INDEX IF NOT EXISTS idx_violation_log_user_ts ON violation_log(user_uuid, ts);
+
+-- Последний алерт по юзеру — для cooldown между повторными нотификациями.
+CREATE TABLE IF NOT EXISTS violation_alerts_sent (
+    user_uuid     TEXT PRIMARY KEY,
+    last_alert_ts INTEGER NOT NULL
+);
 """
 
 
@@ -212,3 +227,49 @@ class Database:
         ) as cur:
             rows = await cur.fetchall()
         return [r["slug"] for r in rows]
+
+    # ---------- violation_log ----------
+
+    async def add_violation(
+        self, user_uuid: str, ts: int, ips_count: int, ips_json: str
+    ) -> None:
+        await self.conn.execute(
+            "INSERT INTO violation_log(user_uuid, ts, ips_count, ips) VALUES (?, ?, ?, ?)",
+            (user_uuid, ts, ips_count, ips_json),
+        )
+        await self.conn.commit()
+
+    async def count_recent_violations(
+        self, user_uuid: str, since_ts: int
+    ) -> int:
+        async with self.conn.execute(
+            "SELECT COUNT(*) AS c FROM violation_log WHERE user_uuid = ? AND ts >= ?",
+            (user_uuid, since_ts),
+        ) as cur:
+            row = await cur.fetchone()
+        return int(row["c"]) if row else 0
+
+    async def prune_violation_log(self, older_than_ts: int) -> None:
+        """Подчищаем старые записи чтобы таблица не пухла бесконечно."""
+        await self.conn.execute(
+            "DELETE FROM violation_log WHERE ts < ?", (older_than_ts,)
+        )
+        await self.conn.commit()
+
+    # ---------- violation_alerts_sent ----------
+
+    async def get_violation_alert_ts(self, user_uuid: str) -> int:
+        async with self.conn.execute(
+            "SELECT last_alert_ts FROM violation_alerts_sent WHERE user_uuid = ?",
+            (user_uuid,),
+        ) as cur:
+            row = await cur.fetchone()
+        return int(row["last_alert_ts"]) if row else 0
+
+    async def set_violation_alert_ts(self, user_uuid: str, ts: int) -> None:
+        await self.conn.execute(
+            "INSERT INTO violation_alerts_sent(user_uuid, last_alert_ts) VALUES (?, ?) "
+            "ON CONFLICT(user_uuid) DO UPDATE SET last_alert_ts = excluded.last_alert_ts",
+            (user_uuid, ts),
+        )
+        await self.conn.commit()

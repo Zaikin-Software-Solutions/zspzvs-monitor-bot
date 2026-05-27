@@ -107,6 +107,35 @@ def admin_down(category: str, title: str, detail: str = "", duration_secs: int =
     return msg
 
 
+def admin_violation(
+    *,
+    username: str,
+    user_uuid: str,
+    limit: int,
+    actual: int,
+    ips: list[str],
+    asns: list[str] | None = None,
+) -> str:
+    """Алерт админу о нарушении лимита устройств у юзера.
+
+    Кнопок пока нет — только текст с подсказкой что делать через RW панель.
+    """
+    ips_str = ", ".join(ips) if ips else "—"
+    msg = (
+        "⚠️ <b>Нарушение лимитов</b>\n"
+        f"Юзер: <b>{username}</b> (<code>{user_uuid}</code>)\n"
+        f"Лимит: <b>{limit}</b> устройств, фактически: <b>{actual}</b>\n"
+        f"IPs: <code>{ips_str}</code>"
+    )
+    if asns:
+        msg += f"\nASN/страны: {', '.join(asns)}"
+    msg += (
+        "\n\n<i>Действия пока через RW-панель: можно отключить юзера, "
+        "сбросить трафик или поднять лимит устройств.</i>"
+    )
+    return msg
+
+
 def admin_up(category: str, title: str, duration_secs: int = 0) -> str:
     """Подробное сообщение админу о восстановлении."""
     cat_icon = {
