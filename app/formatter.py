@@ -136,6 +136,20 @@ def admin_violation(
     return msg
 
 
+def admin_flap(*, title: str, count: int, window_min: int) -> str:
+    """Сообщение админу о нестабильности (множество флапов за окно)."""
+    return (
+        f"⚠️ <b>{title}</b> — нестабилен\n"
+        f"<i>{count} коротких отвалов за {window_min} мин.</i>"
+    )
+
+
+def channel_flap(country_code: str, short_name: str, count: int, window_min: int) -> str:
+    """Краткое сообщение в канал о нестабильности."""
+    flag, _ = COUNTRY_FLAGS.get(country_code, ("⚫", ""))
+    return f"⚠️ {flag} {short_name} — нестабилен ({count} флапов за {window_min} мин)"
+
+
 def admin_up(category: str, title: str, duration_secs: int = 0) -> str:
     """Подробное сообщение админу о восстановлении."""
     cat_icon = {

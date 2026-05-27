@@ -12,8 +12,8 @@ from aiogram.exceptions import TelegramAPIError
 from .config import settings
 from .db import Database
 from .formatter import (
-    admin_down, admin_up,
-    channel_down, channel_up,
+    admin_down, admin_up, admin_flap,
+    channel_down, channel_up, channel_flap,
     channel_node_down, channel_node_up,
     country_from_name, short_name_for_channel,
 )
@@ -104,7 +104,6 @@ class Notifier:
     async def _handle_up(self, event: Event, prev, now: int) -> None:
         # Если предыдущего инцидента не было — нет смысла слать "up", всё и так норм.
         if prev is None or prev.status == "up":
-            # ничего не делаем, только апдейтим запись чтобы был «свежий» up
             if prev is None:
                 await self.db.upsert_incident(
                     slug=event.slug, category=event.category, title=event.title,
@@ -113,22 +112,58 @@ class Notifier:
                 )
             return
 
-        # Был down — шлём recovery
+        # Был down. Различаем 2 случая:
+        # (а) DOWN-алерт УЖЕ был отправлен (prev.last_alert_ts > 0) → реальный длительный
+        #     отвал, шлём полноценный recovery в DM. Если уходил в канал — туда тоже.
+        # (б) DOWN-алерт НЕ отправлялся (мини-флап, не достиг порога) → recovery в DM
+        #     шлём подробно (админ хочет видеть всё), в канал НЕ шлём, плюс фиксируем
+        #     событие в flap_log для последующей детекции нестабильности.
         duration = now - (prev.down_since_ts or now)
-        await self._send_admin(admin_up(event.category, event.title, duration))
+        was_alerted = prev.last_alert_ts > 0
 
-        # В канал шлём recovery только если down тоже уходил в канал
-        if event.category in CHANNEL_CATEGORIES and prev.last_sent_to_channel:
-            # Канал может быть выключен сейчас — но мы всё равно шлём (мы должны "закрыть" down)
-            # ЕСЛИ канал был отключён вообще — то и down туда не уходил, и сюда не зайдём
-            msg = self._channel_text_up(event, duration)
-            await self._send_channel(msg)
+        if was_alerted:
+            # (а) Длительный отвал. Recovery + в канал если уходил.
+            await self._send_admin(admin_up(event.category, event.title, duration))
+            if event.category in CHANNEL_CATEGORIES and prev.last_sent_to_channel:
+                msg = self._channel_text_up(event, duration)
+                await self._send_channel(msg)
+        else:
+            # (б) Мини-флап. DM админу шлём (он хочет видеть всё подробно), канал — нет.
+            await self._send_admin(admin_up(event.category, event.title, duration))
+            # Фиксируем флап и проверяем нестабильность.
+            await self.db.record_flap(event.slug, duration)
+            await self._maybe_flap_alert(event, now)
 
         await self.db.upsert_incident(
             slug=event.slug, category=event.category, title=event.title,
             status="up", down_since_ts=None, consecutive_down=0,
             last_alert_ts=0, last_sent_to_channel=0,
         )
+
+    async def _maybe_flap_alert(self, event: Event, now: int) -> None:
+        """Если флапов слишком много за окно — шлём отдельный «нестабилен» алерт."""
+        count = await self.db.count_recent_flaps(event.slug, settings.flap_window_secs)
+        if count < settings.flap_threshold_count:
+            return
+        # cooldown между повторными flap-алертами
+        last = await self.db.get_flap_alert_ts(event.slug)
+        if now - last < settings.flap_alert_cooldown_secs:
+            return
+
+        window_min = settings.flap_window_secs // 60
+        # DM админу всегда
+        await self._send_admin(admin_flap(title=event.title, count=count, window_min=window_min))
+        # В канал — только если категория для канала и канал разрешён
+        if event.category in CHANNEL_CATEGORIES:
+            if await self._channel_allowed() and not await self.db.is_inbound_muted(event.slug):
+                if event.category == "host":
+                    cc = country_from_name(event.title)
+                    short = short_name_for_channel(event.title)
+                    msg = channel_flap(cc, short, count, window_min)
+                else:
+                    msg = f"⚠️ {event.title} — нестабилен ({count} флапов за {window_min} мин)"
+                await self._send_channel(msg)
+        await self.db.set_flap_alert_ts(event.slug, now)
 
     def _channel_text_down(self, event: Event) -> str:
         if event.category == "host":

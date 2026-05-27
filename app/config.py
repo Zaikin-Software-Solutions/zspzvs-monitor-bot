@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     host_down_threshold_ticks: int = Field(2, alias="HOST_DOWN_THRESHOLD_TICKS")
     alert_cooldown_secs: int = Field(3600, alias="ALERT_COOLDOWN_SECS")
 
+    # === Flap-detection ===
+    # Сколько мини-отвалов (down→up без достижения DOWN-порога) за окно
+    # вызовут отдельный «нестабилен» алерт.
+    flap_threshold_count: int = Field(3, alias="FLAP_THRESHOLD_COUNT")
+    # Окно (секунды) в котором считаем флапы. 1800 = 30 мин.
+    flap_window_secs: int = Field(1800, alias="FLAP_WINDOW_SECS")
+    # Cooldown между повторными «нестабилен» алертами по одному slug.
+    flap_alert_cooldown_secs: int = Field(3600, alias="FLAP_ALERT_COOLDOWN_SECS")
+
     # === Limiter (нотификации только) ===
     # Включает проверку нарушений лимита устройств (HWID/IP) у юзеров.
     enable_limiter: bool = Field(False, alias="ENABLE_LIMITER")

@@ -1,6 +1,6 @@
 [project]
 name = "zspzvs-monitor-bot"
-version = "0.1.0"
+version = "1.1.0"
 description = "Telegram bot для мониторинга zspzvs-инфраструктуры: проверяет хосты, ноды и сервисы, шлёт админу и в канал."
 requires-python = ">=3.12"
 dependencies = [

@@ -88,4 +88,10 @@ async def tick(notifier: Notifier) -> None:
         except Exception as e:
             log.warning("notifier.process(%s) failed: %s", ev.slug, e)
 
+    # Чистим старые flap-записи раз в тик (старше 2× окна — заведомо не нужны).
+    try:
+        await notifier.db.prune_flap_log(settings.flap_window_secs * 2)
+    except Exception as e:
+        log.warning("prune_flap_log failed: %s", e)
+
     log.info("tick done")

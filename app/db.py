@@ -54,6 +54,22 @@ CREATE TABLE IF NOT EXISTS violation_alerts_sent (
     user_uuid     TEXT PRIMARY KEY,
     last_alert_ts INTEGER NOT NULL
 );
+
+-- История флапов (короткие down→up циклы) для детекции нестабильности.
+-- Каждая запись = один down→up цикл. Если в окне FLAP_WINDOW_SECS таких
+-- >= FLAP_THRESHOLD_COUNT — шлём отдельный «нестабилен» алерт.
+CREATE TABLE IF NOT EXISTS flap_log (
+    slug             TEXT NOT NULL,
+    detected_at      INTEGER NOT NULL,       -- timestamp когда up зафиксировал предыдущий down
+    down_duration_s  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_flap_log_slug_ts ON flap_log(slug, detected_at);
+
+-- Последний flap-алерт по slug — для cooldown.
+CREATE TABLE IF NOT EXISTS flap_alerts_sent (
+    slug          TEXT PRIMARY KEY,
+    last_alert_ts INTEGER NOT NULL
+);
 """
 
 
@@ -227,6 +243,49 @@ class Database:
         ) as cur:
             rows = await cur.fetchall()
         return [r["slug"] for r in rows]
+
+    # ---------- flap detection ----------
+
+    async def record_flap(self, slug: str, down_duration_s: int) -> None:
+        """Зафиксировать один цикл down→up. Вызывать когда recovery срабатывает,
+        но при этом DOWN-алерт по этому slug так и не был отправлен (короткий
+        мини-отвал, не достигший порога)."""
+        await self.conn.execute(
+            "INSERT INTO flap_log(slug, detected_at, down_duration_s) VALUES (?, ?, ?)",
+            (slug, int(time.time()), down_duration_s),
+        )
+        await self.conn.commit()
+
+    async def count_recent_flaps(self, slug: str, window_secs: int) -> int:
+        """Сколько флапов было по этому slug за последние window_secs."""
+        threshold_ts = int(time.time()) - window_secs
+        async with self.conn.execute(
+            "SELECT COUNT(*) AS cnt FROM flap_log WHERE slug = ? AND detected_at >= ?",
+            (slug, threshold_ts),
+        ) as cur:
+            row = await cur.fetchone()
+        return int(row["cnt"]) if row else 0
+
+    async def prune_flap_log(self, max_age_secs: int) -> None:
+        """Чистим старые записи (раз в тик можно вызывать)."""
+        cutoff = int(time.time()) - max_age_secs
+        await self.conn.execute("DELETE FROM flap_log WHERE detected_at < ?", (cutoff,))
+        await self.conn.commit()
+
+    async def get_flap_alert_ts(self, slug: str) -> int:
+        async with self.conn.execute(
+            "SELECT last_alert_ts FROM flap_alerts_sent WHERE slug = ?", (slug,)
+        ) as cur:
+            row = await cur.fetchone()
+        return int(row["last_alert_ts"]) if row else 0
+
+    async def set_flap_alert_ts(self, slug: str, ts: int) -> None:
+        await self.conn.execute(
+            "INSERT INTO flap_alerts_sent(slug, last_alert_ts) VALUES (?, ?) "
+            "ON CONFLICT(slug) DO UPDATE SET last_alert_ts = excluded.last_alert_ts",
+            (slug, ts),
+        )
+        await self.conn.commit()
 
     # ---------- violation_log ----------
 
