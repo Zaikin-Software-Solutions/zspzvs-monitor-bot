@@ -17,7 +17,8 @@ RUN pip install \
     "python-dotenv>=1.0" \
     "pydantic>=2.7" \
     "pydantic-settings>=2.4" \
-    "boto3>=1.34"
+    "boto3>=1.34" \
+    "aiohttp>=3.9"
 
 COPY app ./app
 

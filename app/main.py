@@ -12,6 +12,7 @@ from aiogram.types import BotCommand, BotCommandScopeChat, MenuButtonCommands
 from .config import settings
 from .db import Database
 from .handlers import build_root_router
+from .metrics_exporter import run_metrics_exporter
 from .notifier import Notifier
 from .scheduler import run_scheduler
 
@@ -77,6 +78,13 @@ async def main() -> None:
 
     polling = asyncio.create_task(dp.start_polling(bot, db=db))
     scheduler = asyncio.create_task(run_scheduler(notifier))
+
+    # Prometheus-экспортёр loadAvg/memory нод (данные из API панели, которых
+    # нет в её /metrics). Слушает :9101/metrics, не фатален при сбое.
+    try:
+        await run_metrics_exporter(settings.metrics_port)
+    except Exception as e:
+        logger.warning("metrics exporter failed to start (non-fatal): %s", e)
 
     try:
         # Если упадёт любой из двух — выходим из main.

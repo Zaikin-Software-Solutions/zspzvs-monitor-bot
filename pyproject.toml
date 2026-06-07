@@ -1,6 +1,6 @@
 [project]
 name = "zspzvs-monitor-bot"
-version = "1.2.0"
+version = "1.3.0"
 description = "Telegram bot для мониторинга zspzvs-инфраструктуры: проверяет хосты, ноды и сервисы, шлёт админу и в канал."
 requires-python = ">=3.12"
 dependencies = [
@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.4",
     "boto3>=1.34",
+    "aiohttp>=3.9",
 ]
 
 [tool.ruff]

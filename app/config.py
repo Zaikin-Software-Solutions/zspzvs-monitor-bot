@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Алерт если самый свежий бэкап старше этого (часы).
     backup_max_age_hours: int = Field(26, alias="BACKUP_MAX_AGE_HOURS")
 
+    # Порт Prometheus-экспортёра loadAvg/memory нод (из API панели).
+    metrics_port: int = Field(9101, alias="METRICS_PORT")
+
     # Параметры цикла
     check_interval: int = Field(120, alias="CHECK_INTERVAL")
     host_down_threshold_ticks: int = Field(2, alias="HOST_DOWN_THRESHOLD_TICKS")
