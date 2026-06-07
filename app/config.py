@@ -25,6 +25,18 @@ class Settings(BaseSettings):
     # Хранилище
     db_path: str = Field("/data/bot.db", alias="DB_PATH")
 
+    # === Backup-проверка (R2 / S3-совместимое) ===
+    # Бот проверяет свежесть последнего объекта бэкапа в R2-бакете.
+    # Если не задан S3_ENDPOINT — backup-проверка молча пропускается.
+    s3_endpoint: str = Field("", alias="S3_ENDPOINT")
+    s3_access_key: str = Field("", alias="S3_ACCESS_KEY")
+    s3_secret_key: str = Field("", alias="S3_SECRET_KEY")
+    s3_bucket: str = Field("", alias="S3_BUCKET")
+    s3_region: str = Field("auto", alias="S3_REGION")
+    s3_prefix: str = Field("", alias="S3_PREFIX")
+    # Алерт если самый свежий бэкап старше этого (часы).
+    backup_max_age_hours: int = Field(26, alias="BACKUP_MAX_AGE_HOURS")
+
     # Параметры цикла
     check_interval: int = Field(120, alias="CHECK_INTERVAL")
     host_down_threshold_ticks: int = Field(2, alias="HOST_DOWN_THRESHOLD_TICKS")
