@@ -16,7 +16,8 @@ RUN pip install \
     "asyncpg>=0.29" \
     "python-dotenv>=1.0" \
     "pydantic>=2.7" \
-    "pydantic-settings>=2.4"
+    "pydantic-settings>=2.4" \
+    "boto3>=1.34"
 
 COPY app ./app
 
