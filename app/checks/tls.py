@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import time
 
+from ..config import settings
 from ..notifier import Event
 from ._prom import prom_query
 
@@ -16,17 +17,29 @@ log = logging.getLogger("check.tls")
 
 
 THRESHOLD_DAYS = 14
-# Какие instance из job=blackbox_tls_expiry отслеживаем.
-WATCHED = {
-    "crm.zspzvs.ru:443": "crm",
-    "panel.zspzvs.ru:8443": "panel",
-}
+
+
+def parse_watched(raw: str) -> dict[str, str]:
+    """'host:port=slug,host2:port=slug2' -> {instance: slug}. Битые пункты пропускаются."""
+    watched: dict[str, str] = {}
+    for part in raw.split(","):
+        instance, sep, slug = part.strip().partition("=")
+        instance, slug = instance.strip(), slug.strip()
+        if sep and instance and slug:
+            watched[instance] = slug
+        elif part.strip():
+            log.warning("TLS_WATCHED: skip malformed item %r (expected instance=slug)", part)
+    return watched
+
+
+# Какие instance из job=blackbox_tls_expiry* отслеживаем (TLS_WATCHED в .env).
+WATCHED = parse_watched(settings.tls_watched)
 
 
 async def check_tls() -> list[Event]:
-    rows = await prom_query('probe_ssl_earliest_cert_expiry{job="blackbox_tls_expiry"}')
+    rows = await prom_query('probe_ssl_earliest_cert_expiry{job=~"blackbox_tls_expiry.*"}')
     if not rows:
-        log.info("no blackbox_tls_expiry data — skip")
+        log.info("no blackbox_tls_expiry* data — skip")
         return []
 
     now = int(time.time())
