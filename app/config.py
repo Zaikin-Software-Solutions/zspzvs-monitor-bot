@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     # Алерт если самый свежий бэкап старше этого (часы).
     backup_max_age_hours: int = Field(26, alias="BACKUP_MAX_AGE_HOURS")
 
+    # === TLS-проверка срока сертификатов ===
+    # Список "instance=slug" через запятую; instance = label из job=blackbox_tls_expiry*
+    # (для IP-таргета с SNI используйте отдельный job blackbox_tls_expiry_sni).
+    tls_watched: str = Field(
+        "crm.zspzvs.ru:443=crm,panel.zspzvs.ru:8443=panel",
+        alias="TLS_WATCHED",
+    )
+
     # Порт Prometheus-экспортёра loadAvg/memory нод (из API панели).
     metrics_port: int = Field(9101, alias="METRICS_PORT")
 
